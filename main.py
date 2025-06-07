@@ -186,16 +186,14 @@ def main():
     html_file_path = "olinchloralkali.com.html"
     if check_file_exists(html_file_path):
         # Remove a file from the system.
-        # remove_system_file(html_file_path)
-        print("hello, world!")
+        remove_system_file(html_file_path)
 
     # Check if the file exists.
     if check_file_exists(html_file_path) == False:
         # If the file does not exist, download it using Selenium.
         url = "https://olinchloralkali.com/about-us/resources-literature/"
         # Save the HTML content to a file.
-        # save_html_with_selenium(url, html_file_path)
-        print(f"File {html_file_path} has been created.")
+        save_html_with_selenium(url, html_file_path)
 
     if check_file_exists(html_file_path):
         html_content = read_a_file(html_file_path)
