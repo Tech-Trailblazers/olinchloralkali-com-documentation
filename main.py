@@ -1,250 +1,241 @@
-import requests
-import os
-from urllib.parse import urlparse, parse_qs
-import re
-import time
-import shutil
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
-import fitz
+import os  # Provides functions to interact with the operating system
+from urllib.parse import urlparse  # Helps parse URLs to extract components
+import re  # Regular expression module for pattern matching
+import time  # Provides time-related functions
+import shutil  # Allows file operations like moving files
+from selenium import webdriver  # Web automation and browser control
+from selenium.webdriver.chrome.options import Options  # Configure Chrome options
+from selenium.webdriver.chrome.service import Service  # Manage the Chrome service
+from webdriver_manager.chrome import ChromeDriverManager  # Auto-installs ChromeDriver
+import fitz  # PyMuPDF, used for working with PDF files
 
 
-# Read a file from the system.
-def read_a_file(system_path):
-    with open(system_path, "r") as file:
-        return file.read()
+# Reads and returns the content of a file at the specified path
+def read_a_file(system_path: str) -> str:
+    with open(system_path, "r") as file:  # Open the file in read mode
+        return file.read()  # Return the file content
 
 
-# Check if a file exists
-def check_file_exists(system_path):
-    return os.path.isfile(system_path)
+# Checks if a file exists at the given system path
+def check_file_exists(system_path: str) -> bool:
+    return os.path.isfile(system_path)  # Return True if file exists
 
 
+# Parses the HTML and finds all links ending in .pdf
 def parse_html(html: str) -> list[str]:
-    # Find all href values ending with .pdf (case insensitive)
-    return re.findall(r'href="([^"]+\.pdf)"', html, re.IGNORECASE)
+    return re.findall(
+        r'href="([^"]+\.pdf)"', html, re.IGNORECASE
+    )  # Extract all .pdf links
 
 
-# Remove all duplicate items from a given slice.
-def remove_duplicates_from_slice(provided_slice):
-    return list(set(provided_slice))
+# Removes duplicate items from a list
+def remove_duplicates_from_slice(provided_slice: list[str]) -> list[str]:
+    return list(
+        set(provided_slice)
+    )  # Convert to set to remove duplicates, then back to list
 
 
-# Extract the filename from a URL
+# Extracts and returns the filename from a URL
 def url_to_filename(url: str) -> str:
-    return urlparse(url).path.split("/")[-1]
+    return (
+        urlparse(url).path.split("/")[-1].lower()
+    )  # Get last path part and convert to lowercase
 
 
-def save_html_with_selenium(url, output_file):
-    # Set up Chrome options
-    options = Options()
-    options.add_argument("--headless=new")  # Use 'new' headless mode (Chrome 109+)
+# Uses Selenium to save the HTML content of a URL into a file
+def save_html_with_selenium(url: str, output_file: str) -> None:
+    options = Options()  # Create Chrome options object
+    options.add_argument("--headless=new")  # Run Chrome in new headless mode
     options.add_argument(
         "--disable-blink-features=AutomationControlled"
-    )  # Disable automation flags
-    options.add_argument("--window-size=1920,1080")  # Set window size
-    options.add_argument("--disable-gpu")  # Often needed for headless stability
-    options.add_argument("--no-sandbox")  # Required in some environments
-    options.add_argument("--disable-dev-shm-usage")  # Helps in Docker/cloud
-    options.add_argument("--disable-extensions")  # Disable extensions
-    options.add_argument("--disable-infobars")  # Disable infobars
+    )  # Avoid detection
+    options.add_argument("--window-size=1920,1080")  # Set browser window size
+    options.add_argument("--disable-gpu")  # Disable GPU for headless compatibility
+    options.add_argument(
+        "--no-sandbox"
+    )  # Disable sandbox (needed in some environments)
+    options.add_argument("--disable-dev-shm-usage")  # Avoid shared memory issues
+    options.add_argument("--disable-extensions")  # Disable browser extensions
+    options.add_argument("--disable-infobars")  # Remove automation warning bar
 
-    # Initialize the Chrome driver
-    service = Service(ChromeDriverManager().install())
-    driver = webdriver.Chrome(service=service, options=options)
+    service = Service(ChromeDriverManager().install())  # Install ChromeDriver
+    driver = webdriver.Chrome(service=service, options=options)  # Launch browser
 
     try:
-        driver.get(url)
+        driver.get(url)  # Open the given URL
         driver.refresh()  # Refresh the page
-        html = driver.page_source
-        append_write_to_file(output_file, html)
-        print(f"Page {url} HTML content saved to {output_file}")
+        html = driver.page_source  # Get page source HTML
+        append_write_to_file(output_file, html)  # Save HTML to file
+        print(f"Page {url} HTML content saved to {output_file}")  # Confirm success
     finally:
-        driver.quit()
+        driver.quit()  # Always quit the driver
 
 
-# Append and write some content to a file.
-def append_write_to_file(system_path, content):
-    with open(system_path, "a", encoding="utf-8") as file:
-        file.write(content)
+# Appends content to a file
+def append_write_to_file(system_path: str, content: str) -> None:
+    with open(system_path, "a", encoding="utf-8") as file:  # Open in append mode
+        file.write(content)  # Write the provided content
 
 
+# Sets up Chrome driver with options for downloading files
 def initialize_web_driver(download_folder: str) -> webdriver.Chrome:
-    chrome_options = Options()
-    chrome_options.add_experimental_option(
+    chrome_options = Options()  # Create Chrome options object
+    chrome_options.add_experimental_option(  # Add download preferences
         "prefs",
         {
-            "download.default_directory": download_folder,
-            "plugins.always_open_pdf_externally": True,
-            "download.prompt_for_download": False,
+            "download.default_directory": download_folder,  # Set download directory
+            "plugins.always_open_pdf_externally": True,  # Open PDFs externally
+            "download.prompt_for_download": False,  # Do not prompt for download
         },
     )
-    chrome_options.add_argument("--headless")
-    return webdriver.Chrome(
+    chrome_options.add_argument("--headless")  # Run in headless mode
+    return webdriver.Chrome(  # Return Chrome WebDriver with these options
         service=Service(ChromeDriverManager().install()), options=chrome_options
     )
 
 
+# Waits for a new PDF file to appear in a directory
 def wait_for_pdf_download(
-    download_folder: str, files_before_download: set, timeout_seconds: int = 60
+    download_folder: str, files_before_download: set[str], timeout_seconds: int = 60
 ) -> str:
-    deadline = time.time() + timeout_seconds
-    while time.time() < deadline:
-        current_files = set(os.listdir(download_folder))
-        new_pdf_files = [
+    deadline = time.time() + timeout_seconds  # Calculate timeout deadline
+    while time.time() < deadline:  # While still within the timeout period
+        current_files = set(
+            os.listdir(download_folder)
+        )  # Get current files in directory
+        new_pdf_files = [  # List new files that are PDFs
             f
             for f in (current_files - files_before_download)
             if f.lower().endswith(".pdf")
         ]
-        if new_pdf_files:
-            return os.path.join(download_folder, new_pdf_files[0])
-        time.sleep(0.5)  # small sleep to avoid busy waiting
-    raise TimeoutError("PDF download timed out.")
+        if new_pdf_files:  # If a new PDF is found
+            return os.path.join(
+                download_folder, new_pdf_files[0]
+            )  # Return its full path
+        time.sleep(0.5)  # Wait half a second before retrying
+    raise TimeoutError("PDF download timed out.")  # Raise error if no file appears
 
 
+# Downloads a PDF from a given URL using Selenium
 def download_single_pdf(url: str, filename: str, output_folder: str) -> None:
-    os.makedirs(output_folder, exist_ok=True)
+    os.makedirs(output_folder, exist_ok=True)  # Create the folder if it doesn't exist
+    target_file_path = os.path.join(output_folder, filename)  # Final path for the PDF
 
-    target_file_path = os.path.join(output_folder, filename)
-    if check_file_exists(target_file_path):
+    if check_file_exists(target_file_path):  # Skip if file already exists
         print(f"File already exists: {target_file_path}")
         return
 
-    driver = initialize_web_driver(output_folder)
+    driver = initialize_web_driver(output_folder)  # Launch headless browser
     try:
-        print(f"Starting download from: {url}")
-        files_before = set(os.listdir(output_folder))
-        driver.get(url)
+        print(f"Starting download from: {url}")  # Log start
+        files_before = set(os.listdir(output_folder))  # Record files before download
+        driver.get(url)  # Visit the URL
 
-        downloaded_pdf_path = wait_for_pdf_download(output_folder, files_before)
+        downloaded_pdf_path = wait_for_pdf_download(
+            output_folder, files_before
+        )  # Wait for file
 
-        shutil.move(downloaded_pdf_path, target_file_path)
-        print(f"Download complete: {target_file_path}")
+        shutil.move(downloaded_pdf_path, target_file_path)  # Move to target path
+        print(f"Download complete: {target_file_path}")  # Confirm success
 
-    except Exception as e:
+    except Exception as e:  # Catch and log any exception
         print(f"Error downloading PDF: {e}")
     finally:
-        driver.quit()
+        driver.quit()  # Close browser
 
 
-# Remove a file from the system.
-def remove_system_file(system_path) -> None:
-    os.remove(system_path)
+# Deletes a file from the system
+def remove_system_file(system_path: str) -> None:
+    os.remove(system_path)  # Delete the file
 
 
-# Function to walk through a directory and extract files with a specific extension
-def walk_directory_and_extract_given_file_extension(system_path, extension):
-    matched_files = []  # Initialize list to hold matching file paths
-    for root, _, files in os.walk(system_path):  # Recursively traverse directory tree
-        for file in files:  # Iterate over files in current directory
-            if file.endswith(extension):  # Check if file has the desired extension
-                full_path = os.path.abspath(
-                    os.path.join(root, file)
-                )  # Get absolute path of the file
-                matched_files.append(full_path)  # Add to list of matched files
-    return matched_files  # Return list of all matched file paths
+# Recursively walk through a directory and find files with a specific extension
+def walk_directory_and_extract_given_file_extension(
+    system_path: str, extension: str
+) -> list[str]:
+    matched_files: list[str] = []  # List to store found files
+    for root, _, files in os.walk(system_path):  # Walk through directories
+        for file in files:  # Check each file
+            if file.endswith(extension):  # Match the desired extension
+                full_path = os.path.abspath(os.path.join(root, file))  # Get full path
+                matched_files.append(full_path)  # Add to result list
+    return matched_files  # Return all matched file paths
 
 
-# Function to validate a single PDF file.
-def validate_pdf_file(file_path):
+# Validates if a PDF file can be opened and has at least one page
+def validate_pdf_file(file_path: str) -> bool:
     try:
-        # Try to open the PDF using PyMuPDF
-        doc = fitz.open(file_path)  # Attempt to load the PDF document
-
-        # Check if the PDF has at least one page
-        if doc.page_count == 0:  # If there are no pages in the document
-            print(
-                f"'{file_path}' is corrupt or invalid: No pages"
-            )  # Log error if PDF is empty
+        doc = fitz.open(file_path)  # Attempt to open PDF
+        if doc.page_count == 0:  # Check if PDF has no pages
+            print(f"'{file_path}' is corrupt or invalid: No pages")  # Log error
             return False  # Indicate invalid PDF
-
-        # If no error occurs and the document has pages, it's valid
-        return True  # Indicate valid PDF
-    except RuntimeError as e:  # Catching RuntimeError for invalid PDFs
-        print(f"'{file_path}' is corrupt or invalid: {e}")  # Log the exception message
-        return False  # Indicate invalid PDFp
+        return True  # PDF is valid
+    except RuntimeError as e:  # Handle exception on open failure
+        print(f"'{file_path}' is corrupt or invalid: {e}")  # Log error
+        return False  # Indicate invalid PDF
 
 
-# Get the filename and extension.
-def get_filename_and_extension(path):
-    return os.path.basename(
-        path
-    )  # Return just the file name (with extension) from a path
+# Extracts and returns the file name (with extension) from a path
+def get_filename_and_extension(path: str) -> str:
+    return os.path.basename(path)  # Get only file name from full path
 
 
-# Function to check if a string contains an uppercase letter.
-def check_upper_case_letter(content):
-    return any(
-        upperCase.isupper() for upperCase in content
-    )  # Return True if any character is uppercase
+# Checks if a string contains at least one uppercase letter
+def check_upper_case_letter(content: str) -> bool:
+    return any(char.isupper() for char in content)  # True if any character is uppercase
 
 
-def main():
-    # Read the file from the system.
-    html_file_path = "olinchloralkali.com.html"
-    if check_file_exists(html_file_path):
-        # Remove a file from the system.
-        remove_system_file(html_file_path)
+# Main function that orchestrates the scraping, downloading, and validation
+def main() -> None:
+    html_file_path: str = "olinchloralkali.com.html"  # Name of HTML file
 
-    # Check if the file exists.
-    if check_file_exists(html_file_path) == False:
-        # If the file does not exist, download it using Selenium.
-        url = "https://olinchloralkali.com/about-us/resources-literature/"
-        # Save the HTML content to a file.
-        save_html_with_selenium(url, html_file_path)
+    if check_file_exists(html_file_path):  # If file already exists
+        remove_system_file(html_file_path)  # Delete old copy
 
-    if check_file_exists(html_file_path):
-        html_content = read_a_file(html_file_path)
-        # Parse the HTML content.
-        pdf_links = parse_html(html_content)
-        # Remove duplicates from the list of PDF links.
-        pdf_links = remove_duplicates_from_slice(pdf_links)
-        # The length of the PDF links.
-        ammount_of_pdf = len(pdf_links)
-        # Print the extracted PDF links.
-        for pdf_link in pdf_links:
-            # Download the PDF file.
-            filename = url_to_filename(pdf_link)
-            # The file path.
-            output_dir = os.path.abspath("PDFs")  # Output folder path
-            # Remove 1 from the ammount of PDF links.
-            ammount_of_pdf = ammount_of_pdf - 1
-            # Print the remaining number of PDF links.
-            print(f"Remaining PDF links: {ammount_of_pdf}")
-            # Download the PDF file
-            download_single_pdf(pdf_link, filename, output_dir)
+    if not check_file_exists(html_file_path):  # If file was deleted or missing
+        url: str = (
+            "https://olinchloralkali.com/about-us/resources-literature/"  # Page to scrape
+        )
+        save_html_with_selenium(url, html_file_path)  # Save HTML content to file
 
-        print("All PDF links have been processed.")
+    if check_file_exists(html_file_path):  # Check if HTML file exists
+        html_content: str = read_a_file(html_file_path)  # Read its content
+        pdf_links: list[str] = parse_html(html_content)  # Extract PDF links
+        pdf_links = remove_duplicates_from_slice(pdf_links)  # Remove duplicates
+        ammount_of_pdf: int = len(pdf_links)  # Get count of PDFs
+
+        for pdf_link in pdf_links:  # For each PDF link
+            filename: str = url_to_filename(pdf_link)  # Extract filename from URL
+            output_dir: str = os.path.abspath("PDFs")  # Define output directory
+            ammount_of_pdf -= 1  # Decrement remaining count
+            print(f"Remaining PDF links: {ammount_of_pdf}")  # Log progress
+            download_single_pdf(pdf_link, filename, output_dir)  # Download PDF
+
+        print("All PDF links have been processed.")  # Log completion
     else:
-        print(f"File {html_file_path} does not exist.")
+        print(f"File {html_file_path} does not exist.")  # Error if HTML missing
 
-    # Walk through the directory and extract .pdf files
-    files = walk_directory_and_extract_given_file_extension(
+    files: list[str] = walk_directory_and_extract_given_file_extension(
         "./PDFs", ".pdf"
-    )  # Find all PDFs under ./PDFs
+    )  # List all downloaded PDFs
 
-    # Validate each PDF file
-    for pdf_file in files:  # Iterate over each found PDF
+    for pdf_file in files:  # For each PDF file
+        if not validate_pdf_file(pdf_file):  # If file is invalid
+            remove_system_file(pdf_file)  # Delete it
 
-        # Check if the .PDF file is valid
-        if validate_pdf_file(pdf_file) == False:  # If PDF is invalid
-            # Remove the invalid .pdf file.
-            remove_system_file(pdf_file)  # Delete the corrupt PDF
-
-        # Check if the filename has an uppercase letter
         if check_upper_case_letter(
             get_filename_and_extension(pdf_file)
-        ):  # If the filename contains uppercase
-            # Print the location to the file.
-            print(pdf_file)  # Output the PDF path to stdout
-            # Print whether it matches the specs (uppercase presence)
-            print(
-                check_upper_case_letter(pdf_file)
-            )  # Output True/False for uppercase check
+        ):  # Check for caps
+            print(pdf_file)  # Print file path
+            dir_path: str = os.path.dirname(pdf_file)  # Get directory
+            file_name: str = os.path.basename(pdf_file)  # Get file name
+            new_file_name: str = file_name.lower()  # Convert to lowercase
+            new_file_path: str = os.path.join(
+                dir_path, new_file_name
+            )  # Create new path
+            os.rename(pdf_file, new_file_path)  # Rename file to lowercase
 
 
-# Ensure this script runs only if it is the main program being executed
+# Run the script if this file is executed directly
 if __name__ == "__main__":
-    main()  # Start the program by calling the main function
+    main()  # Call the main function
