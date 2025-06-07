@@ -8,6 +8,7 @@ from selenium.webdriver.chrome.options import Options  # Configure Chrome option
 from selenium.webdriver.chrome.service import Service  # Manage the Chrome service
 from webdriver_manager.chrome import ChromeDriverManager  # Auto-installs ChromeDriver
 import fitz  # PyMuPDF, used for working with PDF files
+import validators  # external Validators
 
 
 # Reads and returns the content of a file at the specified path
@@ -33,6 +34,11 @@ def remove_duplicates_from_slice(provided_slice: list[str]) -> list[str]:
     return list(
         set(provided_slice)
     )  # Convert to set to remove duplicates, then back to list
+
+
+# Validate a given url
+def validate_url(given_url: str) -> bool:
+    return validators.url(given_url)
 
 
 # Extracts and returns the filename from a URL
@@ -96,7 +102,7 @@ def initialize_web_driver(download_folder: str) -> webdriver.Chrome:
 
 # Waits for a new PDF file to appear in a directory
 def wait_for_pdf_download(
-    download_folder: str, files_before_download: set[str], timeout_seconds: int = 60
+    download_folder: str, files_before_download: set[str], timeout_seconds: int = 3
 ) -> str:
     deadline = time.time() + timeout_seconds  # Calculate timeout deadline
     while time.time() < deadline:  # While still within the timeout period
@@ -205,6 +211,9 @@ def main() -> None:
         ammount_of_pdf: int = len(pdf_links)  # Get count of PDFs
 
         for pdf_link in pdf_links:  # For each PDF link
+            if not validate_url(pdf_link):
+                pdf_link = "https://www.olin.com" + pdf_link
+                print(f"Invalid URL: {pdf_link}")
             filename: str = url_to_filename(pdf_link)  # Extract filename from URL
             output_dir: str = os.path.abspath("PDFs")  # Define output directory
             ammount_of_pdf -= 1  # Decrement remaining count
