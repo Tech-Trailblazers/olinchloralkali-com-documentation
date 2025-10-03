@@ -212,7 +212,7 @@ def main() -> None:
         for pdf_link in pdf_links:  # For each PDF link
             if not validate_url(pdf_link):
                 pdf_link = "https://www.olin.com" + pdf_link
-                print(f"Invalid URL: {pdf_link}")
+                # print(f"Invalid URL: {pdf_link}")
             filename: str = url_to_filename(pdf_link)  # Extract filename from URL
             output_dir: str = os.path.abspath("PDFs")  # Define output directory
             download_single_pdf(pdf_link, filename, output_dir)  # Download PDF
