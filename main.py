@@ -208,7 +208,6 @@ def main() -> None:
         html_content: str = read_a_file(html_file_path)  # Read its content
         pdf_links: list[str] = parse_html(html_content)  # Extract PDF links
         pdf_links = remove_duplicates_from_slice(pdf_links)  # Remove duplicates
-        ammount_of_pdf: int = len(pdf_links)  # Get count of PDFs
 
         for pdf_link in pdf_links:  # For each PDF link
             if not validate_url(pdf_link):
@@ -216,8 +215,6 @@ def main() -> None:
                 print(f"Invalid URL: {pdf_link}")
             filename: str = url_to_filename(pdf_link)  # Extract filename from URL
             output_dir: str = os.path.abspath("PDFs")  # Define output directory
-            ammount_of_pdf -= 1  # Decrement remaining count
-            print(f"Remaining PDF links: {ammount_of_pdf}")  # Log progress
             download_single_pdf(pdf_link, filename, output_dir)  # Download PDF
 
         print("All PDF links have been processed.")  # Log completion
@@ -236,13 +233,6 @@ def main() -> None:
             get_filename_and_extension(pdf_file)
         ):  # Check for caps
             print(pdf_file)  # Print file path
-            dir_path: str = os.path.dirname(pdf_file)  # Get directory
-            file_name: str = os.path.basename(pdf_file)  # Get file name
-            new_file_name: str = file_name.lower()  # Convert to lowercase
-            new_file_path: str = os.path.join(
-                dir_path, new_file_name
-            )  # Create new path
-            os.rename(pdf_file, new_file_path)  # Rename file to lowercase
 
 
 # Run the script if this file is executed directly
